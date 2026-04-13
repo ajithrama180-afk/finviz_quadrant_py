@@ -424,9 +424,9 @@ def main():
                 st.session_state.all_stocks = process_stocks(df)
                 st.session_state.sector_list = [s for s in df['Sector'].unique() if pd.notna(s)]
                 st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
-                st.success(f"✅ {len(st.session_state.all_stocks)} stocks loaded", icon="✓")
+                st.success(f"{len(st.session_state.all_stocks)} stocks loaded", icon="✅")
             except Exception as e:
-                st.error(f"❌ Error loading file: {str(e)}", icon="✕")
+                st.error(f"Error loading file: {str(e)}", icon="❌")
         
         st.markdown("---")
         
@@ -620,10 +620,10 @@ def main():
                 if st.session_state.raw_df is not None:
                     # Reprocess using the raw original DataFrame so all columns exist
                     st.session_state.all_stocks = process_stocks(st.session_state.raw_df)
-                    st.success("✅ Scores recalculated successfully!", icon="✓")
+                    st.success("Scores recalculated successfully!", icon="✅")
                     st.rerun()
                 else:
-                    st.error("❌ No raw data found. Please re-upload your CSV file.")
+                    st.error("No raw data found. Please re-upload your CSV file.", icon="❌")
 
 if __name__ == "__main__":
     main()
