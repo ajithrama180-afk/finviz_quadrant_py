@@ -8,109 +8,125 @@ warnings.filterwarnings("ignore")
 
 st.set_page_config(page_title="Finviz Elite — 4-Quadrant Stock Classifier", layout="wide")
 
-# Custom CSS for styling
+# ===== CUSTOM STYLING =====
 st.markdown("""
     <style>
-    .metric-card {
-        background: linear-gradient(135deg, #34d399, #60a5fa);
+    /* Global Styling */
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    
+    /* Card Styling */
+    .zone-card {
+        border-radius: 10px;
+        padding: 20px;
+        margin: 10px 0;
         color: white;
+        font-weight: 500;
+    }
+    .premium-card {
+        background: linear-gradient(135deg, #34d399, #10b981);
+        border-left: 4px solid #059669;
+    }
+    .speculative-card {
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        border-left: 4px solid #d97706;
+    }
+    .discount-card {
+        background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        border-left: 4px solid #1d4ed8;
+    }
+    .danger-card {
+        background: linear-gradient(135deg, #f87171, #ef4444);
+        border-left: 4px solid #dc2626;
+    }
+    
+    /* Metric Cards */
+    .metric-card {
+        text-align: center;
         padding: 20px;
         border-radius: 10px;
-        text-align: center;
-        font-size: 28px;
-        font-weight: bold;
+        background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+        border: 1px solid #cbd5e1;
     }
-    .premium { color: #34d399; }
-    .speculative { color: #fbbf24; }
-    .discount { color: #60a5fa; }
-    .danger { color: #f87171; }
+    
+    /* Section Headers */
+    .section-header {
+        border-bottom: 3px solid #e2e8f0;
+        padding-bottom: 10px;
+        margin: 20px 0 15px 0;
+    }
+    
+    /* Filters Container */
+    .filter-container {
+        background: #f8fafc;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+    
+    /* Data Table Enhancement */
+    .dataframe-wrapper {
+        margin: 10px 0;
+    }
+    
+    /* Sidebar Styling */
+    .sidebar-section {
+        margin: 20px 0;
+        padding: 15px 0;
+        border-bottom: 1px solid #e2e8f0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# ===== CONSTANTS =====
-COL = {
-    'ticker': 'Ticker',
-    'company': 'Company',
-    'sector': 'Sector',
-    'industry': 'Industry',
-    'marketCap': 'Market Cap',
-    'pe': 'P/E',
-    'fwdPE': 'Forward P/E',
-    'peg': 'PEG',
-    'ps': 'P/S',
-    'pb': 'P/B',
-    'epsThisY': 'EPS Growth This Year',
-    'epsNextY': 'EPS Growth Next Year',
-    'epsPast5Y': 'EPS Growth Past 5 Years',
-    'epsNext5Y': 'EPS Growth Next 5 Years',
-    'salesPast5Y': 'Sales Growth Past 5 Years',
-    'epsQoQ': 'EPS Growth Quarter Over Quarter',
-    'salesQoQ': 'Sales Growth Quarter Over Quarter',
-    'debtEq': 'Total Debt/Equity',
-    'grossM': 'Gross Margin',
-    'operM': 'Operating Margin',
-    'profitM': 'Profit Margin',
-    'divYield': 'Dividend Yield',
-    'payout': 'Payout Ratio',
-    'epsTTM': 'EPS (ttm)',
-    'perfWeek': 'Performance (Week)',
-    'perfMonth': 'Performance (Month)',
-    'perfQuarter': 'Performance (Quarter)',
-    'perfHalf': 'Performance (Half Year)',
-    'perfYear': 'Performance (Year)',
-    'perfYTD': 'Performance (YTD)',
-    'beta': 'Beta',
-    'volMonth': 'Volatility (Month)',
-    'sma20': '20-Day Simple Moving Average',
-    'sma50': '50-Day Simple Moving Average',
-    'sma200': '200-Day Simple Moving Average',
-    'high52w': '52-Week High',
-    'low52w': '52-Week Low',
-    'rsi': 'Relative Strength Index (14)',
-    'price': 'Price',
-    'change': 'Change',
-    'analystRecom': 'Analyst Recom',
-    'sharesOut': 'Shares Outstanding',
-    'relVol': 'Relative Volume'
-}
-
-FW = {
+# ===== CONSTANTS & CONFIGURATION =====
+FUNDAMENTAL_WEIGHTS = {
     'roe': {'label': 'ROE / ROA %', 'w': 18},
     'profitM': {'label': 'Profit Margin', 'w': 12},
     'grossM': {'label': 'Gross Margin', 'w': 8},
-    'operM': {'label': 'Oper Margin', 'w': 10},
+    'operM': {'label': 'Operating Margin', 'w': 10},
     'pe': {'label': 'P/E (lower=better)', 'w': 12},
     'peg': {'label': 'PEG (lower=better)', 'w': 8},
-    'debtEq': {'label': 'Debt/Eq (lower=better)', 'w': 12},
-    'epsThisY': {'label': 'EPS Growth Y', 'w': 10},
-    'epsPast5Y': {'label': 'EPS Growth 5Y', 'w': 5},
-    'salesPast5Y': {'label': 'Sales Growth 5Y', 'w': 5}
+    'debtEq': {'label': 'Debt/Equity (lower=better)', 'w': 12},
+    'epsThisY': {'label': 'EPS Growth This Year', 'w': 10},
+    'epsPast5Y': {'label': 'EPS Growth Past 5Y', 'w': 5},
+    'salesPast5Y': {'label': 'Sales Growth Past 5Y', 'w': 5}
 }
 
-TW = {
-    'sma20': {'label': 'vs SMA20', 'w': 12},
-    'sma50': {'label': 'vs SMA50', 'w': 18},
-    'sma200': {'label': 'vs SMA200', 'w': 22},
+TECHNICAL_WEIGHTS = {
+    'sma20': {'label': '20-Day Moving Average', 'w': 12},
+    'sma50': {'label': '50-Day Moving Average', 'w': 18},
+    'sma200': {'label': '200-Day Moving Average', 'w': 22},
     'rsi': {'label': 'RSI (14)', 'w': 12},
-    'w52pos': {'label': '52W Range Pos', 'w': 10},
-    'perfMonth': {'label': 'Perf Month', 'w': 10},
-    'perfQuarter': {'label': 'Perf Quarter', 'w': 8},
-    'perfHalf': {'label': 'Perf Half Y', 'w': 8}
+    'w52pos': {'label': '52-Week Range Position', 'w': 10},
+    'perfMonth': {'label': 'Monthly Performance', 'w': 10},
+    'perfQuarter': {'label': 'Quarterly Performance', 'w': 8},
+    'perfHalf': {'label': 'Half-Year Performance', 'w': 8}
 }
 
-# ===== SESSION STATE =====
-if 'all_stocks' not in st.session_state:
-    st.session_state.all_stocks = []
-if 'fund_weights' not in st.session_state:
-    st.session_state.fund_weights = {k: v['w'] for k, v in FW.items()}
-if 'tech_weights' not in st.session_state:
-    st.session_state.tech_weights = {k: v['w'] for k, v in TW.items()}
-if 'fund_cutoff' not in st.session_state:
-    st.session_state.fund_cutoff = 50
-if 'tech_cutoff' not in st.session_state:
-    st.session_state.tech_cutoff = 50
+ZONE_CONFIG = {
+    'premium': {'color': '#34d399', 'emoji': '🟢', 'label': 'Premium Zone', 'desc': 'Strong Fundamentals + Uptrend'},
+    'speculative': {'color': '#fbbf24', 'emoji': '🟡', 'label': 'Speculative', 'desc': 'Weak Fundamentals + Uptrend'},
+    'discount': {'color': '#60a5fa', 'emoji': '🔵', 'label': 'Discount/Value', 'desc': 'Strong Fundamentals + Downtrend'},
+    'danger': {'color': '#f87171', 'emoji': '🔴', 'label': 'Danger Zone', 'desc': 'Weak Fundamentals + Downtrend'}
+}
 
-# ===== HELPER FUNCTIONS =====
+# ===== SESSION STATE INITIALIZATION =====
+def init_session_state():
+    if 'all_stocks' not in st.session_state:
+        st.session_state.all_stocks = []
+    if 'fund_weights' not in st.session_state:
+        st.session_state.fund_weights = {k: v['w'] for k, v in FUNDAMENTAL_WEIGHTS.items()}
+    if 'tech_weights' not in st.session_state:
+        st.session_state.tech_weights = {k: v['w'] for k, v in TECHNICAL_WEIGHTS.items()}
+    if 'fund_cutoff' not in st.session_state:
+        st.session_state.fund_cutoff = 50
+    if 'tech_cutoff' not in st.session_state:
+        st.session_state.tech_cutoff = 50
+    if 'last_loaded' not in st.session_state:
+        st.session_state.last_loaded = None
+
+init_session_state()
+
+# ===== UTILITY FUNCTIONS =====
 def safe_float(v):
     """Convert value to float, handling percentages and commas"""
     if v is None or v == '' or v == '-' or pd.isna(v):
@@ -123,170 +139,76 @@ def safe_float(v):
     except:
         return None
 
-def norm(val, low, high):
+def normalize(val, low, high):
     """Normalize value between 0 and 1"""
     if val is None:
         return None
     return np.clip((val - low) / (high - low), 0, 1)
 
-def calc_fund_score(row):
-    """Calculate fundamental score"""
+def calc_fundamental_score(row):
+    """Calculate fundamental score based on weighted metrics"""
     score = 0
-    tw = 0
+    total_weight = 0
+    metrics = {
+        'roe': ('ROE', -5, 35),
+        'profitM': ('Profit Margin', -10, 30),
+        'grossM': ('Gross Margin', 0, 70),
+        'operM': ('Operating Margin', -10, 35),
+        'pe': ('P/E', 5, 60, True),  # True means lower is better
+        'peg': ('PEG', 0, 3, True),
+        'debtEq': ('Total Debt/Equity', 0, 3, True),
+        'epsThisY': ('EPS Growth This Year', -20, 40),
+        'epsPast5Y': ('EPS Growth Past 5 Years', -10, 30),
+        'salesPast5Y': ('Sales Growth Past 5 Years', -5, 25),
+    }
     
-    # ROE
-    if pd.notna(row.get('ROE')) and row.get('ROE') is not None:
-        roe = safe_float(row.get('ROE'))
-        if roe is not None:
-            tw += FW['roe']['w']
-            score += FW['roe']['w'] * norm(roe, -5, 35)
+    for key, (col_name, low, high, *inverse) in metrics.items():
+        val = safe_float(row.get(col_name))
+        if val is not None and (key != 'pe' or val > 0) and (key != 'peg' or val > 0) and (key != 'debtEq' or val >= 0):
+            weight = FUNDAMENTAL_WEIGHTS[key]['w']
+            total_weight += weight
+            norm_val = normalize(val, low, high)
+            if inverse and inverse[0]:
+                norm_val = 1 - norm_val
+            score += weight * norm_val
     
-    # Profit Margin
-    profitM = safe_float(row.get('Profit Margin'))
-    if profitM is not None:
-        tw += FW['profitM']['w']
-        score += FW['profitM']['w'] * norm(profitM, -10, 30)
-    
-    # Gross Margin
-    grossM = safe_float(row.get('Gross Margin'))
-    if grossM is not None:
-        tw += FW['grossM']['w']
-        score += FW['grossM']['w'] * norm(grossM, 0, 70)
-    
-    # Operating Margin
-    operM = safe_float(row.get('Operating Margin'))
-    if operM is not None:
-        tw += FW['operM']['w']
-        score += FW['operM']['w'] * norm(operM, -10, 35)
-    
-    # P/E (lower is better)
-    pe = safe_float(row.get('P/E'))
-    if pe is not None and pe > 0:
-        tw += FW['pe']['w']
-        score += FW['pe']['w'] * (1 - norm(pe, 5, 60))
-    
-    # PEG (lower is better)
-    peg = safe_float(row.get('PEG'))
-    if peg is not None and peg > 0:
-        tw += FW['peg']['w']
-        score += FW['peg']['w'] * (1 - norm(peg, 0, 3))
-    
-    # Debt/Equity (lower is better)
-    debtEq = safe_float(row.get('Total Debt/Equity'))
-    if debtEq is not None and debtEq >= 0:
-        tw += FW['debtEq']['w']
-        score += FW['debtEq']['w'] * (1 - norm(debtEq, 0, 3))
-    
-    # EPS Growth This Year
-    epsThisY = safe_float(row.get('EPS Growth This Year'))
-    if epsThisY is not None:
-        tw += FW['epsThisY']['w']
-        score += FW['epsThisY']['w'] * norm(epsThisY, -20, 40)
-    
-    # EPS Growth Past 5Y
-    epsPast5Y = safe_float(row.get('EPS Growth Past 5 Years'))
-    if epsPast5Y is not None:
-        tw += FW['epsPast5Y']['w']
-        score += FW['epsPast5Y']['w'] * norm(epsPast5Y, -10, 30)
-    
-    # Sales Growth Past 5Y
-    salesPast5Y = safe_float(row.get('Sales Growth Past 5 Years'))
-    if salesPast5Y is not None:
-        tw += FW['salesPast5Y']['w']
-        score += FW['salesPast5Y']['w'] * norm(salesPast5Y, -5, 25)
-    
-    if tw == 0:
-        return 50
-    return round((score / tw) * 100)
+    return round((score / total_weight) * 100) if total_weight > 0 else 50
 
-def calc_tech_score(row):
-    """Calculate technical score"""
+def calc_technical_score(row):
+    """Calculate technical score based on weighted metrics"""
     score = 0
-    tw = 0
+    total_weight = 0
+    metrics = {
+        'sma20': ('20-Day Simple Moving Average', -20, 20),
+        'sma50': ('50-Day Simple Moving Average', -30, 30),
+        'sma200': ('200-Day Simple Moving Average', -40, 40),
+        'rsi': ('Relative Strength Index (14)', 20, 80),
+        'w52pos': ('52-Week Low', 0, 100),
+        'perfMonth': ('Performance (Month)', -20, 20),
+        'perfQuarter': ('Performance (Quarter)', -30, 30),
+        'perfHalf': ('Performance (Half Year)', -30, 30),
+    }
     
-    # vs SMA20
-    sma20 = safe_float(row.get('20-Day Simple Moving Average'))
-    if sma20 is not None:
-        tw += TW['sma20']['w']
-        score += TW['sma20']['w'] * norm(sma20, -20, 20)
+    for key, (col_name, low, high) in metrics.items():
+        val = safe_float(row.get(col_name))
+        if val is not None:
+            weight = TECHNICAL_WEIGHTS[key]['w']
+            total_weight += weight
+            norm_val = normalize(val, low, high)
+            score += weight * norm_val
     
-    # vs SMA50
-    sma50 = safe_float(row.get('50-Day Simple Moving Average'))
-    if sma50 is not None:
-        tw += TW['sma50']['w']
-        score += TW['sma50']['w'] * norm(sma50, -30, 30)
-    
-    # vs SMA200
-    sma200 = safe_float(row.get('200-Day Simple Moving Average'))
-    if sma200 is not None:
-        tw += TW['sma200']['w']
-        score += TW['sma200']['w'] * norm(sma200, -40, 40)
-    
-    # RSI
-    rsi = safe_float(row.get('Relative Strength Index (14)'))
-    if rsi is not None:
-        tw += TW['rsi']['w']
-        score += TW['rsi']['w'] * norm(rsi, 20, 80)
-    
-    # 52W Low Position
-    low52w = safe_float(row.get('52-Week Low'))
-    if low52w is not None:
-        tw += TW['w52pos']['w']
-        score += TW['w52pos']['w'] * norm(low52w, 0, 100)
-    
-    # Perf Month
-    perfMonth = safe_float(row.get('Performance (Month)'))
-    if perfMonth is not None:
-        tw += TW['perfMonth']['w']
-        score += TW['perfMonth']['w'] * norm(perfMonth, -20, 20)
-    
-    # Perf Quarter
-    perfQuarter = safe_float(row.get('Performance (Quarter)'))
-    if perfQuarter is not None:
-        tw += TW['perfQuarter']['w']
-        score += TW['perfQuarter']['w'] * norm(perfQuarter, -30, 30)
-    
-    # Perf Half Year
-    perfHalf = safe_float(row.get('Performance (Half Year)'))
-    if perfHalf is not None:
-        tw += TW['perfHalf']['w']
-        score += TW['perfHalf']['w'] * norm(perfHalf, -30, 30)
-    
-    if tw == 0:
-        return 50
-    return round((score / tw) * 100)
+    return round((score / total_weight) * 100) if total_weight > 0 else 50
 
-def classify_zone(fund_score, tech_score, fund_cut, tech_cut):
+def classify_zone(fund_score, tech_score, fund_cutoff, tech_cutoff):
     """Classify stock into quadrant zone"""
-    if fund_score >= fund_cut and tech_score >= tech_cut:
+    if fund_score >= fund_cutoff and tech_score >= tech_cutoff:
         return 'premium'
-    elif fund_score >= fund_cut and tech_score < tech_cut:
+    elif fund_score >= fund_cutoff and tech_score < tech_cutoff:
         return 'discount'
-    elif fund_score < fund_cut and tech_score >= tech_cut:
+    elif fund_score < fund_cutoff and tech_score >= tech_cutoff:
         return 'speculative'
     else:
         return 'danger'
-
-def get_market_cap_category(market_cap):
-    """Categorize market cap"""
-    if pd.isna(market_cap) or market_cap is None:
-        return None
-    try:
-        mc = safe_float(market_cap)
-        if mc is None:
-            return None
-        if mc >= 200000:
-            return 'mega'
-        elif mc >= 10000:
-            return 'large'
-        elif mc >= 2000:
-            return 'mid'
-        elif mc >= 300:
-            return 'small'
-        else:
-            return 'micro'
-    except:
-        return None
 
 def process_stocks(df):
     """Process CSV data and calculate scores"""
@@ -296,8 +218,8 @@ def process_stocks(df):
         if not ticker:
             continue
         
-        fund_score = calc_fund_score(row)
-        tech_score = calc_tech_score(row)
+        fund_score = calc_fundamental_score(row)
+        tech_score = calc_technical_score(row)
         zone = classify_zone(fund_score, tech_score, st.session_state.fund_cutoff, st.session_state.tech_cutoff)
         
         stock = {
@@ -319,254 +241,388 @@ def process_stocks(df):
         stocks.append(stock)
     return stocks
 
-# ===== TITLE & HEADER =====
-st.markdown("<h1 style='text-align: center'>📊 Finviz Elite — 4-Quadrant Classifier</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray'>Upload Finviz CSV → Instant Fundamental × Technical classification</p>", unsafe_allow_html=True)
-
-# ===== FILE UPLOAD =====
-# ===== SIDEBAR =====
-with st.sidebar:
-    st.markdown("### 📥 Data Source")
-    
-    FINVIZ_URL = (
-    "https://elite.finviz.com/export.ashx?v=152"
-    "&f=ind_stocksonly,sh_avgvol_o2000,sh_price_o50"  # ← sh_price_o50 = price over $50
-    "&c=1,2,3,4,6,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23,"
-    "24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,"
-    "43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,"
-    "62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,"
-    "81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96"
-    )
-    st.link_button("📊 Export from Finviz Elite", FINVIZ_URL, use_container_width=True)
-    st.caption("Opens Finviz → CSV auto-downloads")
-    
-    st.markdown("---")
-    
-    uploaded_file = st.file_uploader("📁 Upload CSV", type=['csv'])
-    
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            st.session_state.all_stocks = process_stocks(df)
-            st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
-            st.success(f"✅ {len(st.session_state.all_stocks)} stocks loaded")
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-    
-    if 'last_loaded' in st.session_state:
-        st.markdown("---")
-        st.caption(f"🕐 Last loaded: {st.session_state.last_loaded}")
-
-
-# ===== TABS =====
-tab1, tab2, tab3, tab4 = st.tabs(["🎯 Quadrants", "🔵 Scatter", "📋 Table", "⚙️ Settings"])
-
-if st.session_state.all_stocks:
-    stocks_df = pd.DataFrame(st.session_state.all_stocks)
-    
-    # Calculate zone counts
+# ===== UI COMPONENTS =====
+def render_zone_metrics(stocks_df):
+    """Render zone count metrics in a grid"""
     zone_counts = stocks_df['zone'].value_counts().to_dict()
     
-    with tab1:
-        st.subheader("Stock Classification by Quadrant")
-        
-        # Display zone counts
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("🟢 Premium Zone", zone_counts.get('premium', 0), "Strong + Uptrend")
-        with col2:
-            st.metric("🟡 Speculative", zone_counts.get('speculative', 0), "Weak + Uptrend")
-        with col3:
-            st.metric("🔵 Discount", zone_counts.get('discount', 0), "Strong + Downtrend")
-        with col4:
-            st.metric("🔴 Danger Zone", zone_counts.get('danger', 0), "Weak + Downtrend")
-        
-        st.markdown("---")
-        
-        # Filters
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            sector_filter = st.selectbox("Sector", ["All"] + sorted(stocks_df['sector'].unique().tolist()))
-        with col2:
-            zone_filter = st.selectbox("Zone", ["All", "premium", "discount", "speculative", "danger"])
-        with col3:
-            cap_filter = st.selectbox("Market Cap", ["All", "mega", "large", "mid", "small", "micro"])
-        with col4:
-            search_filter = st.text_input("Search", placeholder="Ticker or name...")
-        
-        # Apply filters
-        filtered_df = stocks_df.copy()
-        if sector_filter != "All":
-            filtered_df = filtered_df[filtered_df['sector'] == sector_filter]
-        if zone_filter != "All":
-            filtered_df = filtered_df[filtered_df['zone'] == zone_filter]
-        if search_filter:
-            filtered_df = filtered_df[
-                filtered_df['ticker'].str.contains(search_filter, case=False, na=False) |
-                filtered_df['company'].str.contains(search_filter, case=False, na=False)
-            ]
-        
-        # Display quadrants
-        quad_col1, quad_col2 = st.columns(2)
-        
-        with quad_col1:
-            st.markdown("#### 🟢 Premium Zone")
-            premium = filtered_df[filtered_df['zone'] == 'premium'].sort_values('fund_score', ascending=False)
-            st.dataframe(premium[['ticker', 'company', 'fund_score', 'tech_score', 'price']].head(50), use_container_width=True)
-            
-            st.markdown("#### 🔵 Discount / Value Trap")
-            discount = filtered_df[filtered_df['zone'] == 'discount'].sort_values('fund_score', ascending=False)
-            st.dataframe(discount[['ticker', 'company', 'fund_score', 'tech_score', 'price']].head(50), use_container_width=True)
-        
-        with quad_col2:
-            st.markdown("#### 🟡 Speculative Bubble")
-            speculative = filtered_df[filtered_df['zone'] == 'speculative'].sort_values('fund_score', ascending=False)
-            st.dataframe(speculative[['ticker', 'company', 'fund_score', 'tech_score', 'price']].head(50), use_container_width=True)
-            
-            st.markdown("#### 🔴 Danger Zone")
-            danger = filtered_df[filtered_df['zone'] == 'danger'].sort_values('fund_score', ascending=False)
-            st.dataframe(danger[['ticker', 'company', 'fund_score', 'tech_score', 'price']].head(50), use_container_width=True)
+    col1, col2, col3, col4 = st.columns(4, gap="medium")
     
-    with tab2:
-        st.subheader("Fundamental vs Technical Score Scatter")
-        
-        # Create scatter plot
-        fig = go.Figure()
-        
-        for zone, color, symbol in [('premium', '#34d399', 'circle'), ('speculative', '#fbbf24', 'circle'),
-                                     ('discount', '#60a5fa', 'circle'), ('danger', '#f87171', 'circle')]:
-            zone_data = stocks_df[stocks_df['zone'] == zone]
+    with col1:
+        count = zone_counts.get('premium', 0)
+        st.metric(
+            f"{ZONE_CONFIG['premium']['emoji']} Premium",
+            count,
+            help="Strong fundamentals + Uptrend"
+        )
+    with col2:
+        count = zone_counts.get('speculative', 0)
+        st.metric(
+            f"{ZONE_CONFIG['speculative']['emoji']} Speculative",
+            count,
+            help="Weak fundamentals + Uptrend"
+        )
+    with col3:
+        count = zone_counts.get('discount', 0)
+        st.metric(
+            f"{ZONE_CONFIG['discount']['emoji']} Discount",
+            count,
+            help="Strong fundamentals + Downtrend"
+        )
+    with col4:
+        count = zone_counts.get('danger', 0)
+        st.metric(
+            f"{ZONE_CONFIG['danger']['emoji']} Danger",
+            count,
+            help="Weak fundamentals + Downtrend"
+        )
+
+def render_filter_controls():
+    """Render unified filter controls"""
+    st.markdown("#### 🔍 Filter & Search")
+    col1, col2, col3, col4 = st.columns(4, gap="small")
+    
+    with col1:
+        sector = st.selectbox(
+            "Sector",
+            ["All"] + sorted(st.session_state.sector_list),
+            key="sector_filter"
+        )
+    with col2:
+        zone = st.selectbox(
+            "Zone",
+            ["All", "premium", "speculative", "discount", "danger"],
+            key="zone_filter"
+        )
+    with col3:
+        search = st.text_input(
+            "Search",
+            placeholder="Ticker or company name...",
+            key="search_filter"
+        )
+    with col4:
+        sort_by = st.selectbox(
+            "Sort by",
+            ["Fund Score", "Tech Score", "Ticker", "Price"],
+            key="sort_filter"
+        )
+    
+    return sector, zone, search, sort_by
+
+def apply_filters(df, sector_filter, zone_filter, search_filter):
+    """Apply filters to dataframe"""
+    filtered = df.copy()
+    
+    if sector_filter != "All":
+        filtered = filtered[filtered['sector'] == sector_filter]
+    if zone_filter != "All":
+        filtered = filtered[filtered['zone'] == zone_filter]
+    if search_filter:
+        mask = (
+            filtered['ticker'].str.contains(search_filter, case=False, na=False) |
+            filtered['company'].str.contains(search_filter, case=False, na=False)
+        )
+        filtered = filtered[mask]
+    
+    return filtered
+
+def render_quadrant_section(stocks_df):
+    """Render detailed quadrant view with stocks organized by zone"""
+    col1, col2 = st.columns(2, gap="medium")
+    
+    zones = ['premium', 'discount', 'speculative', 'danger']
+    cols = [col1, col2, col1, col2]
+    
+    for idx, zone in enumerate(zones):
+        with cols[idx]:
+            zone_data = stocks_df[stocks_df['zone'] == zone].sort_values('fund_score', ascending=False).head(25)
+            
+            st.markdown(f"""
+                <div class='zone-card {zone}-card'>
+                    <strong>{ZONE_CONFIG[zone]['emoji']} {ZONE_CONFIG[zone]['label']}</strong><br>
+                    <small>{ZONE_CONFIG[zone]['desc']}</small>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            if len(zone_data) > 0:
+                display_cols = ['ticker', 'company', 'fund_score', 'tech_score', 'price']
+                st.dataframe(
+                    zone_data[display_cols].rename(columns={
+                        'ticker': 'Ticker',
+                        'company': 'Company',
+                        'fund_score': 'Fund',
+                        'tech_score': 'Tech',
+                        'price': 'Price'
+                    }),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("No stocks in this zone")
+
+def render_scatter_plot(stocks_df):
+    """Render fundamental vs technical scatter plot"""
+    fig = go.Figure()
+    
+    for zone in ['premium', 'speculative', 'discount', 'danger']:
+        zone_data = stocks_df[stocks_df['zone'] == zone]
+        if len(zone_data) > 0:
             fig.add_trace(go.Scatter(
                 x=zone_data['fund_score'],
                 y=zone_data['tech_score'],
                 mode='markers+text',
-                name=zone.capitalize(),
-                marker=dict(size=12, color=color, opacity=0.7),
+                name=ZONE_CONFIG[zone]['label'],
+                marker=dict(
+                    size=10,
+                    color=ZONE_CONFIG[zone]['color'],
+                    opacity=0.7,
+                    line=dict(width=1, color='white')
+                ),
                 text=zone_data['ticker'],
                 textposition='top center',
-                textfont=dict(size=8),
-                hovertemplate='<b>%{text}</b><br>Fund: %{x}<br>Tech: %{y}<extra></extra>'
+                textfont=dict(size=9, color='white'),
+                hovertemplate='<b>%{text}</b><br>Fund: %{x:.0f}<br>Tech: %{y:.0f}<extra></extra>'
             ))
-        
-        # Add quadrant lines
-        fig.add_vline(x=st.session_state.fund_cutoff, line_dash="dash", line_color="rgba(255,255,255,0.3)")
-        fig.add_hline(y=st.session_state.tech_cutoff, line_dash="dash", line_color="rgba(255,255,255,0.3)")
-        
-        fig.update_layout(
-            title="Fundamental vs Technical Score",
-            xaxis_title="Fundamental Score (Left = Strong)",
-            yaxis_title="Technical Score (Top = Uptrend)",
-            hovermode='closest',
-            height=600,
-            template='plotly_dark',
-            xaxis=dict(range=[0, 100]),
-            yaxis=dict(range=[0, 100])
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
     
-    with tab3:
-        st.subheader("All Stocks — Scored & Classified")
-        
-        # Sorting and Filtering
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-        with col1:
-            sort_by = st.selectbox("Sort by", ["fund_score", "tech_score", "ticker", "price"], key="table_sort_by")
-        with col2:
-            sort_order = st.selectbox("Order", ["Descending", "Ascending"], key="table_sort_order")
-        with col3:
-            zone_filter_multi = st.multiselect(
-                "Filter by Zone",
-                ["premium", "speculative", "discount", "danger"],
-                default=["premium", "speculative", "discount", "danger"],
-                key="table_zone_filter"
-            )
-        with col4:
-            sector_filter_table = st.selectbox(
-                "Filter by Sector",
-                ["All"] + sorted(stocks_df['sector'].unique().tolist()),
-                key="table_sector_filter"
-            )
-        
-        # Apply filters
-        table_filtered_df = stocks_df.copy()
-        if zone_filter_multi:
-            table_filtered_df = table_filtered_df[table_filtered_df['zone'].isin(zone_filter_multi)]
-        if sector_filter_table != "All":
-            table_filtered_df = table_filtered_df[table_filtered_df['sector'] == sector_filter_table]
-        
-        sorted_df = table_filtered_df.sort_values(sort_by, ascending=(sort_order == "Ascending"))
-        
-        st.dataframe(
-            sorted_df[[
-                'ticker', 'company', 'sector', 'zone', 'fund_score', 'tech_score',
-                'price', 'pe', 'roe', 'debtEq', 'rsi', 'sma200', 'perfYear'
-            ]],
-            use_container_width=True
-        )
-        
-        # Export button
-        if st.button("⬇ Export Filtered Data as CSV", key="table_export_btn"):
-            csv = sorted_df.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="finviz_quadrant_export.csv",
-                mime="text/csv"
-            )
+    fig.add_vline(x=st.session_state.fund_cutoff, line_dash="dash", line_color="rgba(255,255,255,0.3)", annotation_text="Fund Cutoff")
+    fig.add_hline(y=st.session_state.tech_cutoff, line_dash="dash", line_color="rgba(255,255,255,0.3)", annotation_text="Tech Cutoff")
     
-    with tab4:
-        st.subheader("⚙️ Scoring Weights & Thresholds")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📋 Fundamental Score Weights")
-            for key, val in FW.items():
-                st.session_state.fund_weights[key] = st.slider(
-                    val['label'], 0, 50, st.session_state.fund_weights.get(key, val['w']),
-                    key=f"fw_{key}"
-                )
-            
-            st.session_state.fund_cutoff = st.slider(
-                "Strong/Weak Cutoff", 20, 80, st.session_state.fund_cutoff,
-                key="fund_cutoff_slider"
-            )
-        
-        with col2:
-            st.markdown("#### 📈 Technical Score Weights")
-            for key, val in TW.items():
-                st.session_state.tech_weights[key] = st.slider(
-                    val['label'], 0, 50, st.session_state.tech_weights.get(key, val['w']),
-                    key=f"tw_{key}"
-                )
-            
-            st.session_state.tech_cutoff = st.slider(
-                "Uptrend/Downtrend Cutoff", 20, 80, st.session_state.tech_cutoff,
-                key="tech_cutoff_slider"
-            )
-        
-        # Recalculate button
-        if st.button("🔄 Recalculate All Scores", key="recalc_btn"):
-            # Update FW and TW with new weights
-            for key in FW:
-                FW[key]['w'] = st.session_state.fund_weights[key]
-            for key in TW:
-                TW[key]['w'] = st.session_state.tech_weights[key]
-            
-            # Reprocess stocks with new weights
-            stocks_df_recalc = pd.DataFrame(st.session_state.all_stocks)
-            for idx, row in stocks_df_recalc.iterrows():
-                st.session_state.all_stocks[idx]['fund_score'] = calc_fund_score(stocks_df_recalc.iloc[idx])
-                st.session_state.all_stocks[idx]['tech_score'] = calc_tech_score(stocks_df_recalc.iloc[idx])
-                st.session_state.all_stocks[idx]['zone'] = classify_zone(
-                    st.session_state.all_stocks[idx]['fund_score'],
-                    st.session_state.all_stocks[idx]['tech_score'],
-                    st.session_state.fund_cutoff,
-                    st.session_state.tech_cutoff
-                )
-            st.success("✅ Scores recalculated!")
-            st.rerun()
+    fig.update_layout(
+        title="Fundamental vs Technical Score Distribution",
+        xaxis_title="Fundamental Score (Left = Strong)",
+        yaxis_title="Technical Score (Top = Uptrend)",
+        hovermode='closest',
+        height=600,
+        template='plotly_dark',
+        xaxis=dict(range=[0, 100]),
+        yaxis=dict(range=[0, 100]),
+        showlegend=True
+    )
+    
+    return fig
 
-else:
-    st.info("📁 Upload a Finviz CSV file to get started")
+# ===== MAIN APPLICATION =====
+def main():
+    # Header
+    st.markdown("<h1 style='text-align: center; margin-bottom: 10px;'>📊 Finviz Elite</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray; margin-top: -10px; margin-bottom: 20px;'>4-Quadrant Stock Classification System</p>", unsafe_allow_html=True)
+    
+    # Sidebar: File Upload
+    with st.sidebar:
+        st.markdown("### 📥 Data Upload")
+        
+        uploaded_file = st.file_uploader("Upload Finviz CSV", type=['csv'], help="Export from Finviz Elite")
+        
+        if uploaded_file is not None:
+            try:
+                df = pd.read_csv(uploaded_file)
+                st.session_state.all_stocks = process_stocks(df)
+                st.session_state.sector_list = [s for s in df['Sector'].unique() if pd.notna(s)]
+                st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
+                st.success(f"✅ {len(st.session_state.all_stocks)} stocks loaded", icon="✓")
+            except Exception as e:
+                st.error(f"❌ Error loading file: {str(e)}", icon="✕")
+        
+        st.markdown("---")
+        
+        FINVIZ_URL = (
+            "https://elite.finviz.com/export.ashx?v=152"
+            "&f=ind_stocksonly,sh_avgvol_o2000,sh_price_o50"
+            "&c=1,2,3,4,6,7,9,10,11,13,14,15,16,17,18,19,20,21,22,23,"
+            "24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,"
+            "43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,"
+            "62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,"
+            "81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96"
+        )
+        st.link_button("📊 Export from Finviz", FINVIZ_URL, use_container_width=True)
+        st.caption("Click to export CSV from Finviz Elite")
+        
+        if st.session_state.last_loaded:
+            st.markdown("---")
+            st.caption(f"🕐 Last loaded: {st.session_state.last_loaded}")
+        
+        st.markdown("---")
+        
+        # Sidebar: Settings
+        with st.expander("⚙️ Settings & Weights"):
+            st.markdown("**Fundamental Score Cutoff**")
+            st.session_state.fund_cutoff = st.slider(
+                "Strong/Weak threshold",
+                20, 80, st.session_state.fund_cutoff,
+                key="sidebar_fund_cutoff"
+            )
+            
+            st.markdown("**Technical Score Cutoff**")
+            st.session_state.tech_cutoff = st.slider(
+                "Uptrend/Downtrend threshold",
+                20, 80, st.session_state.tech_cutoff,
+                key="sidebar_tech_cutoff"
+            )
+    
+    # Main content
+    if not st.session_state.all_stocks:
+        st.info("📁 **Get Started:** Upload a Finviz CSV file from the sidebar to begin analysis")
+        st.markdown("""
+            ### How to use this tool:
+            1. **Export data** from Finviz Elite using the link in the sidebar
+            2. **Upload the CSV** file using the file uploader
+            3. **View results** in the tabs below
+            4. **Customize weights** in the settings panel
+        """)
+    else:
+        stocks_df = pd.DataFrame(st.session_state.all_stocks)
+        if 'sector_list' not in st.session_state:
+            st.session_state.sector_list = stocks_df['sector'].unique().tolist()
+        
+        # Unified Metrics
+        st.markdown("<div class='section-header'><strong>📈 Portfolio Overview</strong></div>", unsafe_allow_html=True)
+        render_zone_metrics(stocks_df)
+        
+        # Tabs for different views
+        tab1, tab2, tab3, tab4 = st.tabs(["🎯 Quadrants", "📊 Scatter Plot", "📋 Full Table", "⚙️ Advanced Settings"])
+        
+        with tab1:
+            st.markdown("<div class='section-header'><strong>Stock Classification by Zone</strong></div>", unsafe_allow_html=True)
+            
+            # Filters
+            sector_f, zone_f, search_f, _ = render_filter_controls()
+            filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
+            
+            st.markdown("---")
+            render_quadrant_section(filtered_df)
+        
+        with tab2:
+            st.markdown("<div class='section-header'><strong>Fundamental vs Technical Analysis</strong></div>", unsafe_allow_html=True)
+            
+            sector_f, zone_f, search_f, _ = render_filter_controls()
+            filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
+            
+            st.plotly_chart(render_scatter_plot(filtered_df), use_container_width=True)
+        
+        with tab3:
+            st.markdown("<div class='section-header'><strong>All Stocks — Complete Data</strong></div>", unsafe_allow_html=True)
+            
+            col1, col2, col3, col4 = st.columns(4, gap="small")
+            with col1:
+                sort_by_map = {
+                    'Fund Score': 'fund_score',
+                    'Tech Score': 'tech_score',
+                    'Ticker': 'ticker',
+                    'Price': 'price'
+                }
+                sort_col = st.selectbox("Sort by", list(sort_by_map.keys()), key="table_sort")
+            with col2:
+                sort_order = st.selectbox("Order", ["Descending", "Ascending"], key="table_order")
+            with col3:
+                zone_multi = st.multiselect(
+                    "Filter Zones",
+                    ["premium", "speculative", "discount", "danger"],
+                    default=["premium", "speculative", "discount", "danger"],
+                    key="table_zone_multi"
+                )
+            with col4:
+                sector_filter_table = st.selectbox(
+                    "Filter Sector",
+                    ["All"] + sorted(st.session_state.sector_list),
+                    key="table_sector"
+                )
+            
+            # Apply filters and sort
+            table_df = stocks_df.copy()
+            if zone_multi:
+                table_df = table_df[table_df['zone'].isin(zone_multi)]
+            if sector_filter_table != "All":
+                table_df = table_df[table_df['sector'] == sector_filter_table]
+            
+            table_df = table_df.sort_values(
+                sort_by_map[sort_col],
+                ascending=(sort_order == "Ascending")
+            )
+            
+            st.dataframe(
+                table_df[[
+                    'ticker', 'company', 'sector', 'zone', 'fund_score', 'tech_score',
+                    'price', 'pe', 'roe', 'debtEq', 'rsi', 'sma200', 'perfYear'
+                ]].rename(columns={
+                    'ticker': 'Ticker',
+                    'company': 'Company',
+                    'sector': 'Sector',
+                    'zone': 'Zone',
+                    'fund_score': 'Fund Score',
+                    'tech_score': 'Tech Score',
+                    'price': 'Price',
+                    'pe': 'P/E',
+                    'roe': 'ROE',
+                    'debtEq': 'Debt/Eq',
+                    'rsi': 'RSI',
+                    'sma200': 'SMA200',
+                    'perfYear': 'YTD Perf'
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            # Export options
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                csv = table_df.to_csv(index=False)
+                st.download_button(
+                    label="⬇ Download CSV",
+                    data=csv,
+                    file_name="finviz_quadrant_export.csv",
+                    mime="text/csv"
+                )
+        
+        with tab4:
+            st.markdown("<div class='section-header'><strong>Scoring Weights Configuration</strong></div>", unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 📋 Fundamental Score Weights")
+                st.info("Adjust weights to emphasize different metrics", icon="ℹ️")
+                for key, config in FUNDAMENTAL_WEIGHTS.items():
+                    st.session_state.fund_weights[key] = st.slider(
+                        config['label'],
+                        0, 50,
+                        st.session_state.fund_weights.get(key, config['w']),
+                        key=f"fw_{key}"
+                    )
+            
+            with col2:
+                st.markdown("#### 📈 Technical Score Weights")
+                st.info("Adjust weights to emphasize different metrics", icon="ℹ️")
+                for key, config in TECHNICAL_WEIGHTS.items():
+                    st.session_state.tech_weights[key] = st.slider(
+                        config['label'],
+                        0, 50,
+                        st.session_state.tech_weights.get(key, config['w']),
+                        key=f"tw_{key}"
+                    )
+            
+            st.markdown("---")
+            
+            if st.button("🔄 Recalculate All Scores", use_container_width=True, type="primary"):
+                # Update weights in constants
+                for key in FUNDAMENTAL_WEIGHTS:
+                    FUNDAMENTAL_WEIGHTS[key]['w'] = st.session_state.fund_weights[key]
+                for key in TECHNICAL_WEIGHTS:
+                    TECHNICAL_WEIGHTS[key]['w'] = st.session_state.tech_weights[key]
+                
+                # Reprocess stocks
+                stocks_df_recalc = pd.DataFrame(st.session_state.all_stocks)
+                for idx, row in stocks_df_recalc.iterrows():
+                    st.session_state.all_stocks[idx]['fund_score'] = calc_fundamental_score(stocks_df_recalc.iloc[idx])
+                    st.session_state.all_stocks[idx]['tech_score'] = calc_technical_score(stocks_df_recalc.iloc[idx])
+                    st.session_state.all_stocks[idx]['zone'] = classify_zone(
+                        st.session_state.all_stocks[idx]['fund_score'],
+                        st.session_state.all_stocks[idx]['tech_score'],
+                        st.session_state.fund_cutoff,
+                        st.session_state.tech_cutoff
+                    )
+                
+                st.success("✅ Scores recalculated successfully!", icon="✓")
+                st.rerun()
+
+if __name__ == "__main__":
+    main()
