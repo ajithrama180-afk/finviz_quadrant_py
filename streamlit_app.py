@@ -111,6 +111,8 @@ ZONE_CONFIG = {
 
 # ===== SESSION STATE INITIALIZATION =====
 def init_session_state():
+    if 'raw_df' not in st.session_state:
+        st.session_state.raw_df = None
     if 'all_stocks' not in st.session_state:
         st.session_state.all_stocks = []
     if 'fund_weights' not in st.session_state:
@@ -165,7 +167,8 @@ def calc_fundamental_score(row):
     for key, (col_name, low, high, *inverse) in metrics.items():
         val = safe_float(row.get(col_name))
         if val is not None and (key != 'pe' or val > 0) and (key != 'peg' or val > 0) and (key != 'debtEq' or val >= 0):
-            weight = FUNDAMENTAL_WEIGHTS[key]['w']
+            # Pull weight from session state, fallback to default
+            weight = st.session_state.fund_weights.get(key, FUNDAMENTAL_WEIGHTS[key]['w'])
             total_weight += weight
             norm_val = normalize(val, low, high)
             if inverse and inverse[0]:
@@ -192,7 +195,8 @@ def calc_technical_score(row):
     for key, (col_name, low, high) in metrics.items():
         val = safe_float(row.get(col_name))
         if val is not None:
-            weight = TECHNICAL_WEIGHTS[key]['w']
+            # Pull weight from session state, fallback to default
+            weight = st.session_state.tech_weights.get(key, TECHNICAL_WEIGHTS[key]['w'])
             total_weight += weight
             norm_val = normalize(val, low, high)
             score += weight * norm_val
@@ -416,6 +420,7 @@ def main():
         if uploaded_file is not None:
             try:
                 df = pd.read_csv(uploaded_file)
+                st.session_state.raw_df = df  # Store raw df for recalculations
                 st.session_state.all_stocks = process_stocks(df)
                 st.session_state.sector_list = [s for s in df['Sector'].unique() if pd.notna(s)]
                 st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
@@ -470,6 +475,15 @@ def main():
             4. **Customize weights** in the settings panel
         """)
     else:
+        # Dynamically update zones so sidebar slider changes are immediate
+        for stock in st.session_state.all_stocks:
+            stock['zone'] = classify_zone(
+                stock['fund_score'], 
+                stock['tech_score'], 
+                st.session_state.fund_cutoff, 
+                st.session_state.tech_cutoff
+            )
+            
         stocks_df = pd.DataFrame(st.session_state.all_stocks)
         if 'sector_list' not in st.session_state:
             st.session_state.sector_list = stocks_df['sector'].unique().tolist()
@@ -603,26 +617,13 @@ def main():
             st.markdown("---")
             
             if st.button("🔄 Recalculate All Scores", use_container_width=True, type="primary"):
-                # Update weights in constants
-                for key in FUNDAMENTAL_WEIGHTS:
-                    FUNDAMENTAL_WEIGHTS[key]['w'] = st.session_state.fund_weights[key]
-                for key in TECHNICAL_WEIGHTS:
-                    TECHNICAL_WEIGHTS[key]['w'] = st.session_state.tech_weights[key]
-                
-                # Reprocess stocks
-                stocks_df_recalc = pd.DataFrame(st.session_state.all_stocks)
-                for idx, row in stocks_df_recalc.iterrows():
-                    st.session_state.all_stocks[idx]['fund_score'] = calc_fundamental_score(stocks_df_recalc.iloc[idx])
-                    st.session_state.all_stocks[idx]['tech_score'] = calc_technical_score(stocks_df_recalc.iloc[idx])
-                    st.session_state.all_stocks[idx]['zone'] = classify_zone(
-                        st.session_state.all_stocks[idx]['fund_score'],
-                        st.session_state.all_stocks[idx]['tech_score'],
-                        st.session_state.fund_cutoff,
-                        st.session_state.tech_cutoff
-                    )
-                
-                st.success("✅ Scores recalculated successfully!", icon="✓")
-                st.rerun()
+                if st.session_state.raw_df is not None:
+                    # Reprocess using the raw original DataFrame so all columns exist
+                    st.session_state.all_stocks = process_stocks(st.session_state.raw_df)
+                    st.success("✅ Scores recalculated successfully!", icon="✓")
+                    st.rerun()
+                else:
+                    st.error("❌ No raw data found. Please re-upload your CSV file.")
 
 if __name__ == "__main__":
     main()
