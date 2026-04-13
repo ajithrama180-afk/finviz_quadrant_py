@@ -148,12 +148,23 @@ def safe_float(v):
         elif s.endswith('K'):
             multiplier = 1e3
             s = s[:-1]
-            
         if s == '':
             return None
         return float(s) * multiplier
     except:
         return None
+
+def fmt_mcap(val):
+    """Format raw market cap float into human-readable string"""
+    if val is None or (isinstance(val, float) and np.isnan(val)):
+        return "—"
+    if val >= 1e12:
+        return f"${val/1e12:.2f}T"
+    if val >= 1e9:
+        return f"${val/1e9:.2f}B"
+    if val >= 1e6:
+        return f"${val/1e6:.2f}M"
+    return f"${val:,.0f}"
 
 def get_mcap_category(val):
     """Categorize market cap into standard tiers"""
@@ -179,7 +190,7 @@ def calc_fundamental_score(row):
         'profitM': ('Profit Margin', -10, 30),
         'grossM': ('Gross Margin', 0, 70),
         'operM': ('Operating Margin', -10, 35),
-        'pe': ('P/E', 5, 60, True),  # True means lower is better
+        'pe': ('P/E', 5, 60, True),
         'peg': ('PEG', 0, 3, True),
         'debtEq': ('Total Debt/Equity', 0, 3, True),
         'epsThisY': ('EPS Growth This Year', -20, 40),
@@ -444,7 +455,7 @@ def main():
         if uploaded_file is not None:
             try:
                 df = pd.read_csv(uploaded_file)
-                st.session_state.raw_df = df  # Store raw df for recalculations
+                st.session_state.raw_df = df
                 st.session_state.all_stocks = process_stocks(df)
                 st.session_state.sector_list = [s for s in df['Sector'].unique() if pd.notna(s)]
                 st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
@@ -502,9 +513,9 @@ def main():
         # Dynamically update zones so sidebar slider changes are immediate
         for stock in st.session_state.all_stocks:
             stock['zone'] = classify_zone(
-                stock['fund_score'], 
-                stock['tech_score'], 
-                st.session_state.fund_cutoff, 
+                stock['fund_score'],
+                stock['tech_score'],
+                st.session_state.fund_cutoff,
                 st.session_state.tech_cutoff
             )
             
@@ -516,26 +527,20 @@ def main():
         st.markdown("<div class='section-header'><strong>📈 Portfolio Overview</strong></div>", unsafe_allow_html=True)
         render_zone_metrics(stocks_df)
         
-        # Tabs for different views
+        # Tabs
         tab1, tab2, tab3, tab4 = st.tabs(["🎯 Quadrants", "📊 Scatter Plot", "📋 Full Table", "⚙️ Advanced Settings"])
         
         with tab1:
             st.markdown("<div class='section-header'><strong>Stock Classification by Zone</strong></div>", unsafe_allow_html=True)
-            
-            # Filters - Added tab1 suffix
             sector_f, zone_f, search_f, _ = render_filter_controls(key_suffix="tab1")
             filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
-            
             st.markdown("---")
             render_quadrant_section(filtered_df)
         
         with tab2:
             st.markdown("<div class='section-header'><strong>Fundamental vs Technical Analysis</strong></div>", unsafe_allow_html=True)
-            
-            # Filters - Added tab2 suffix
             sector_f, zone_f, search_f, _ = render_filter_controls(key_suffix="tab2")
             filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
-            
             st.plotly_chart(render_scatter_plot(filtered_df), use_container_width=True)
         
         with tab3:
@@ -547,7 +552,8 @@ def main():
                     'Fund Score': 'fund_score',
                     'Tech Score': 'tech_score',
                     'Ticker': 'ticker',
-                    'Price': 'price'
+                    'Price': 'price',
+                    'Market Cap': 'market_cap'
                 }
                 sort_col = st.selectbox("Sort by", list(sort_by_map.keys()), key="table_sort")
             with col2:
@@ -572,7 +578,7 @@ def main():
                     key="table_mcap"
                 )
             
-            # Apply filters and sort
+            # Apply filters
             table_df = stocks_df.copy()
             if zone_multi:
                 table_df = table_df[table_df['zone'].isin(zone_multi)]
@@ -581,36 +587,45 @@ def main():
             if mcap_filter_table != "All":
                 table_df = table_df[table_df['mcap_cat'] == mcap_filter_table]
             
+            # Sort
             table_df = table_df.sort_values(
                 sort_by_map[sort_col],
-                ascending=(sort_order == "Ascending")
+                ascending=(sort_order == "Ascending"),
+                na_position='last'
             )
-            
+
+            # ── FIX: Add formatted market cap display column ──
+            table_df = table_df.copy()
+            table_df['market_cap_fmt'] = table_df['market_cap'].apply(fmt_mcap)
+            # ─────────────────────────────────────────────────
+
             st.dataframe(
                 table_df[[
-                    'ticker', 'company', 'sector', 'mcap_cat', 'zone', 'fund_score', 'tech_score',
-                    'price', 'pe', 'roe', 'debtEq', 'rsi', 'sma200', 'perfYear'
+                    'ticker', 'company', 'sector', 'market_cap_fmt', 'mcap_cat', 'zone',
+                    'fund_score', 'tech_score', 'price', 'pe', 'roe',
+                    'debtEq', 'rsi', 'sma200', 'perfYear'
                 ]].rename(columns={
-                    'ticker': 'Ticker',
-                    'company': 'Company',
-                    'sector': 'Sector',
-                    'mcap_cat': 'Market Cap',
-                    'zone': 'Zone',
-                    'fund_score': 'Fund Score',
-                    'tech_score': 'Tech Score',
-                    'price': 'Price',
-                    'pe': 'P/E',
-                    'roe': 'ROE',
-                    'debtEq': 'Debt/Eq',
-                    'rsi': 'RSI',
-                    'sma200': 'SMA200',
-                    'perfYear': 'YTD Perf'
+                    'ticker':         'Ticker',
+                    'company':        'Company',
+                    'sector':         'Sector',
+                    'market_cap_fmt': 'Market Cap',
+                    'mcap_cat':       'Cap Tier',
+                    'zone':           'Zone',
+                    'fund_score':     'Fund Score',
+                    'tech_score':     'Tech Score',
+                    'price':          'Price',
+                    'pe':             'P/E',
+                    'roe':            'ROE',
+                    'debtEq':         'Debt/Eq',
+                    'rsi':            'RSI',
+                    'sma200':         'SMA200',
+                    'perfYear':       'YTD Perf'
                 }),
                 use_container_width=True,
                 hide_index=True
             )
             
-            # Export options
+            # Export
             col1, col2, col3 = st.columns(3)
             with col1:
                 csv = table_df.to_csv(index=False)
@@ -652,7 +667,6 @@ def main():
             
             if st.button("🔄 Recalculate All Scores", use_container_width=True, type="primary"):
                 if st.session_state.raw_df is not None:
-                    # Reprocess using the raw original DataFrame so all columns exist
                     st.session_state.all_stocks = process_stocks(st.session_state.raw_df)
                     st.success("Scores recalculated successfully!", icon="✅")
                     st.rerun()
