@@ -130,16 +130,39 @@ init_session_state()
 
 # ===== UTILITY FUNCTIONS =====
 def safe_float(v):
-    """Convert value to float, handling percentages and commas"""
+    """Convert value to float, handling percentages, commas, and B/M/T suffixes"""
     if v is None or v == '' or v == '-' or pd.isna(v):
         return None
     try:
-        s = str(v).replace('%', '').replace(',', '').strip()
+        s = str(v).replace('%', '').replace(',', '').strip().upper()
+        multiplier = 1
+        if s.endswith('B'):
+            multiplier = 1e9
+            s = s[:-1]
+        elif s.endswith('M'):
+            multiplier = 1e6
+            s = s[:-1]
+        elif s.endswith('T'):
+            multiplier = 1e12
+            s = s[:-1]
+        elif s.endswith('K'):
+            multiplier = 1e3
+            s = s[:-1]
+            
         if s == '':
             return None
-        return float(s)
+        return float(s) * multiplier
     except:
         return None
+
+def get_mcap_category(val):
+    """Categorize market cap into standard tiers"""
+    if val is None: return "Unknown"
+    if val >= 200e9: return "Mega (200B+)"
+    if val >= 10e9: return "Large (10B-200B)"
+    if val >= 2e9: return "Mid (2B-10B)"
+    if val >= 300e6: return "Small (300M-2B)"
+    return "Micro (<300M)"
 
 def normalize(val, low, high):
     """Normalize value between 0 and 1"""
@@ -224,6 +247,8 @@ def process_stocks(df):
         tech_score = calc_technical_score(row)
         zone = classify_zone(fund_score, tech_score, st.session_state.fund_cutoff, st.session_state.tech_cutoff)
         
+        mcap_val = safe_float(row.get('Market Cap'))
+        
         stock = {
             'ticker': ticker,
             'company': str(row.get('Company', ticker)).strip(),
@@ -238,7 +263,8 @@ def process_stocks(df):
             'rsi': safe_float(row.get('Relative Strength Index (14)')),
             'sma200': safe_float(row.get('200-Day Simple Moving Average')),
             'perfYear': safe_float(row.get('Performance (Year)')),
-            'market_cap': safe_float(row.get('Market Cap')),
+            'market_cap': mcap_val,
+            'mcap_cat': get_mcap_category(mcap_val),
         }
         stocks.append(stock)
     return stocks
@@ -515,7 +541,7 @@ def main():
         with tab3:
             st.markdown("<div class='section-header'><strong>All Stocks — Complete Data</strong></div>", unsafe_allow_html=True)
             
-            col1, col2, col3, col4 = st.columns(4, gap="small")
+            col1, col2, col3, col4, col5 = st.columns(5, gap="small")
             with col1:
                 sort_by_map = {
                     'Fund Score': 'fund_score',
@@ -539,6 +565,12 @@ def main():
                     ["All"] + sorted(st.session_state.sector_list),
                     key="table_sector"
                 )
+            with col5:
+                mcap_filter_table = st.selectbox(
+                    "Market Cap",
+                    ["All", "Mega (200B+)", "Large (10B-200B)", "Mid (2B-10B)", "Small (300M-2B)", "Micro (<300M)", "Unknown"],
+                    key="table_mcap"
+                )
             
             # Apply filters and sort
             table_df = stocks_df.copy()
@@ -546,6 +578,8 @@ def main():
                 table_df = table_df[table_df['zone'].isin(zone_multi)]
             if sector_filter_table != "All":
                 table_df = table_df[table_df['sector'] == sector_filter_table]
+            if mcap_filter_table != "All":
+                table_df = table_df[table_df['mcap_cat'] == mcap_filter_table]
             
             table_df = table_df.sort_values(
                 sort_by_map[sort_col],
@@ -554,12 +588,13 @@ def main():
             
             st.dataframe(
                 table_df[[
-                    'ticker', 'company', 'sector', 'zone', 'fund_score', 'tech_score',
+                    'ticker', 'company', 'sector', 'mcap_cat', 'zone', 'fund_score', 'tech_score',
                     'price', 'pe', 'roe', 'debtEq', 'rsi', 'sma200', 'perfYear'
                 ]].rename(columns={
                     'ticker': 'Ticker',
                     'company': 'Company',
                     'sector': 'Sector',
+                    'mcap_cat': 'Market Cap',
                     'zone': 'Zone',
                     'fund_score': 'Fund Score',
                     'tech_score': 'Tech Score',
