@@ -324,15 +324,36 @@ st.markdown("<h1 style='text-align: center'>📊 Finviz Elite — 4-Quadrant Cla
 st.markdown("<p style='text-align: center; color: gray'>Upload Finviz CSV → Instant Fundamental × Technical classification</p>", unsafe_allow_html=True)
 
 # ===== FILE UPLOAD =====
-uploaded_file = st.file_uploader("📁 Drop your Finviz CSV here or click to browse", type=['csv'])
+# ===== SIDEBAR =====
+with st.sidebar:
+    st.markdown("### 📥 Data Source")
+    
+    FINVIZ_URL = (
+        "https://elite.finviz.com/export.ashx?v=152"
+        "&f=ind_stocksonly,sh_avgvol_o2000,sh_price_o70"
+        "&c=1,2,4,6,9,10,14,15,16,23,38,39,41,42,44,45,46,47,48,"
+        "56,57,65,66,67,68,69,70,71,72,73,74,75,76,79,80,81,82,85,86,88,91,94"
+    )
+    st.link_button("📊 Export from Finviz Elite", FINVIZ_URL, use_container_width=True)
+    st.caption("Opens Finviz → CSV auto-downloads")
+    
+    st.markdown("---")
+    
+    uploaded_file = st.file_uploader("📁 Upload CSV", type=['csv'])
+    
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+            st.session_state.all_stocks = process_stocks(df)
+            st.session_state.last_loaded = pd.Timestamp.now().strftime("%b %d, %Y %I:%M %p")
+            st.success(f"✅ {len(st.session_state.all_stocks)} stocks loaded")
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+    
+    if 'last_loaded' in st.session_state:
+        st.markdown("---")
+        st.caption(f"🕐 Last loaded: {st.session_state.last_loaded}")
 
-if uploaded_file is not None:
-    try:
-        df = pd.read_csv(uploaded_file)
-        st.session_state.all_stocks = process_stocks(df)
-        st.success(f"✅ Loaded {len(st.session_state.all_stocks)} stocks from {uploaded_file.name}")
-    except Exception as e:
-        st.error(f"❌ Error parsing file: {str(e)}")
 
 # ===== TABS =====
 tab1, tab2, tab3, tab4 = st.tabs(["🎯 Quadrants", "🔵 Scatter", "📋 Table", "⚙️ Settings"])
