@@ -167,7 +167,6 @@ def calc_fundamental_score(row):
     for key, (col_name, low, high, *inverse) in metrics.items():
         val = safe_float(row.get(col_name))
         if val is not None and (key != 'pe' or val > 0) and (key != 'peg' or val > 0) and (key != 'debtEq' or val >= 0):
-            # Pull weight from session state, fallback to default
             weight = st.session_state.fund_weights.get(key, FUNDAMENTAL_WEIGHTS[key]['w'])
             total_weight += weight
             norm_val = normalize(val, low, high)
@@ -195,7 +194,6 @@ def calc_technical_score(row):
     for key, (col_name, low, high) in metrics.items():
         val = safe_float(row.get(col_name))
         if val is not None:
-            # Pull weight from session state, fallback to default
             weight = st.session_state.tech_weights.get(key, TECHNICAL_WEIGHTS[key]['w'])
             total_weight += weight
             norm_val = normalize(val, low, high)
@@ -281,8 +279,8 @@ def render_zone_metrics(stocks_df):
             help="Weak fundamentals + Downtrend"
         )
 
-def render_filter_controls():
-    """Render unified filter controls"""
+def render_filter_controls(key_suffix=""):
+    """Render unified filter controls with unique keys"""
     st.markdown("#### 🔍 Filter & Search")
     col1, col2, col3, col4 = st.columns(4, gap="small")
     
@@ -290,25 +288,25 @@ def render_filter_controls():
         sector = st.selectbox(
             "Sector",
             ["All"] + sorted(st.session_state.sector_list),
-            key="sector_filter"
+            key=f"sector_filter_{key_suffix}"
         )
     with col2:
         zone = st.selectbox(
             "Zone",
             ["All", "premium", "speculative", "discount", "danger"],
-            key="zone_filter"
+            key=f"zone_filter_{key_suffix}"
         )
     with col3:
         search = st.text_input(
             "Search",
             placeholder="Ticker or company name...",
-            key="search_filter"
+            key=f"search_filter_{key_suffix}"
         )
     with col4:
         sort_by = st.selectbox(
             "Sort by",
             ["Fund Score", "Tech Score", "Ticker", "Price"],
-            key="sort_filter"
+            key=f"sort_filter_{key_suffix}"
         )
     
     return sector, zone, search, sort_by
@@ -498,8 +496,8 @@ def main():
         with tab1:
             st.markdown("<div class='section-header'><strong>Stock Classification by Zone</strong></div>", unsafe_allow_html=True)
             
-            # Filters
-            sector_f, zone_f, search_f, _ = render_filter_controls()
+            # Filters - Added tab1 suffix
+            sector_f, zone_f, search_f, _ = render_filter_controls(key_suffix="tab1")
             filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
             
             st.markdown("---")
@@ -508,7 +506,8 @@ def main():
         with tab2:
             st.markdown("<div class='section-header'><strong>Fundamental vs Technical Analysis</strong></div>", unsafe_allow_html=True)
             
-            sector_f, zone_f, search_f, _ = render_filter_controls()
+            # Filters - Added tab2 suffix
+            sector_f, zone_f, search_f, _ = render_filter_controls(key_suffix="tab2")
             filtered_df = apply_filters(stocks_df, sector_f, zone_f, search_f)
             
             st.plotly_chart(render_scatter_plot(filtered_df), use_container_width=True)
